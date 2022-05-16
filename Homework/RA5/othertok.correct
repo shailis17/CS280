@@ -1,0 +1,20 @@
+Other tokens:
+END (END) Line #: 15
+ICONST (579) Line #: 5
+SCONST (hello NJIT) Line #: 6
+RCONST (5.79) Line #: 7
+PLUS (+) Line #: 3
+MINUS (-) Line #: 3
+MULT (*) Line #: 3
+DIV (/) Line #: 3
+ASSOP (:=) Line #: 3
+LPAREN (() Line #: 3
+RPAREN ()) Line #: 3
+SEMICOL (;) Line #: 3
+COMMA (,) Line #: 3
+EQUAL (=) Line #: 4
+GTHAN (>) Line #: 4
+ERR (ERR) Line #: 3
+COLON (:) Line #: 3
+ASSOP (:=) Line #: 3
+DONE (DONE) Line #: 3

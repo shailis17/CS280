@@ -1,0 +1,19 @@
+Identifiers and Keywords:
+IDENT (WRITE) Line #: 15
+IDENT (circle) Line #: 5
+IDENT (square) Line #: 6
+IDENT (rectangle) Line #: 7
+IDENT (ellipse) Line #: 3
+PROGRAM (PROGRAM) Line #: 3
+IDENT (REPEAT) Line #: 3
+INTEGER (INTEGER) Line #: 3
+REAL (REAL) Line #: 3
+STRING (STRING) Line #: 3
+IF (IF) Line #: 3
+THEN (THEN) Line #: 3
+END (END) Line #: 3
+TO (TO) Line #: 4
+DOWNTO (DOWNTO) Line #: 4
+FOR (FOR) Line #: 3
+ELSE (ELSE) Line #: 3
+IDENT (DONE) Line #: 3
