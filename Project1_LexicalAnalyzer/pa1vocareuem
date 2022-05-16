@@ -1,0 +1,537 @@
+/*
+    LEX.CPP
+*/
+
+#include "lex.h"
+#include <map>
+#include <string>
+#include <cctype>
+
+LexItem getNextToken(istream& in, int& linenum)  //check for \n and increment linenum
+{ 
+    enum TokState {START, INID, INSTRING, ININT, INREAL, INCOMMENT}
+    lexstate = START;
+    string lexeme = "";
+    char c;
+
+    while(in.get(c)) 
+    {
+        /*if(c == -1)
+            return LexItem(DONE, "DONE", linenum);*/
+        if(c == '\n')
+        {
+            if(in.peek() == -1)
+                return LexItem(DONE, "DONE", linenum);
+              
+            linenum++;
+            continue;
+        }
+        
+        while(isspace(c))
+        {
+            if(c == '\n' && in.peek() != -1)
+                linenum++;
+            in.get(c);
+        }
+        
+        if(lexstate == START) 
+        {
+            if(c == '\n')
+            {
+                linenum++;
+            }
+
+            if(isalpha(c))
+                lexeme += toupper(c);
+            else
+                lexeme += c;
+            
+            if(isalpha(c) || c == '_')
+            {
+                lexstate = INID;
+            }
+            else if(c == '\'')
+            {
+                lexstate = INSTRING;
+            }
+            else if(isdigit(c))
+            {
+                lexstate = ININT;
+            }
+            else if(c == '.')
+            {
+                lexstate = INREAL;   
+            }
+            else if(c == '(')
+            {
+                in.get(c);
+
+                if(c == '*')
+                {
+                    lexeme += c;
+                    lexstate = INCOMMENT;
+                }
+                else
+                {
+                    in.putback(c);
+                    return LexItem(LPAREN, lexeme, linenum);
+                }
+            }
+            else
+            {
+                if(c == '+')
+                    return LexItem(PLUS, "+", linenum);
+                if(c == '-')
+                    return LexItem(MINUS, "-", linenum);
+                if(c == '*')
+                    return LexItem(MULT, "*", linenum);
+                if(c == '/')
+                    return LexItem(DIV, "/", linenum);
+                if(c == ':')
+                {
+                    char ch;
+                    in.get(ch);
+                    
+                    if(ch == '=')
+                        return LexItem(ASSOP, ":=", linenum);
+                    else
+                    {
+                        in.putback(ch);
+                        return LexItem(COLON, ":", linenum);
+                    }
+                }
+                if(c == '(')
+                    return LexItem(LPAREN, "(", linenum);
+                if(c == ')')
+                    return LexItem(RPAREN, ")", linenum);
+                if(c == '=')
+                    return LexItem(EQUAL, "=", linenum);
+                if(c == '<')
+                    return LexItem(LTHAN, "<", linenum);
+                if(c == '>')
+                    return LexItem(GTHAN, ">", linenum);
+                if(c == ';')
+                    return LexItem(SEMICOL, ";", linenum);
+                if(c == ',')
+                    return LexItem(COMMA, ",", linenum);
+            }
+        }
+        
+        if(lexstate == INID) //letter followed by 0+ letters/digit
+        {
+            in.get(c);
+
+            while(isalnum(c) || c == '_')
+            {
+                if(isalpha(c))
+                    lexeme += toupper(c);
+                else
+                    lexeme += c;
+                in.get(c);
+            }
+
+            in.putback(c);
+
+            return id_or_kw(lexeme, linenum);
+        }
+        
+        if(lexstate == INSTRING)
+        {
+            in.get(c);
+
+            while(c != '\n' && c != '\'' && c != '\"' && c != EOF)
+            {
+                lexeme += c;
+                in.get(c);
+            }
+            
+            if(c == '\n')
+            {
+                in.putback(c);
+                return LexItem(ERR, lexeme, linenum);
+            }
+            else if(c == '\"')
+            {
+                return LexItem(ERR, lexeme + c, linenum);   
+            }
+            else if(c == '\'')
+            {
+                return LexItem(SCONST, lexeme + "\'", linenum);
+            }
+            else
+            {
+                return LexItem(ERR, lexeme , linenum);
+            }
+        }
+        
+        if(lexstate == ININT) //ICONST = 1 or more digits
+        {
+            in.get(c);
+
+            while(isdigit(c)) //pull in digits
+            {
+                lexeme += c;
+                in.get(c);
+            }
+
+            if(c == '.') //if you see . ==> RCONSTS
+            {
+                lexeme += c;
+                lexstate = INREAL;
+            }
+            else
+            {
+                in.putback(c);
+                    
+                return LexItem(ICONST, lexeme, linenum);
+            }
+        }
+
+        if(lexstate == INREAL)
+        {
+            in.get(c);
+
+            while(isdigit(c)) //pull in digits
+            {
+                lexeme += c;
+                in.get(c);
+            }
+
+            if(c == '.') //if you see . ==> ERR
+            {
+                lexeme += c;
+
+                while(isdigit(c)) //pull in digits
+                {
+                    lexeme += c;
+                    in.get(c);
+                }
+
+                in.putback(c);
+
+                return LexItem(ERR, lexeme, linenum);
+            }
+            else
+                if(c == '\n')
+                    linenum++;
+                else
+                    in.putback(c);
+
+            return LexItem(RCONST, lexeme, linenum);
+        }
+
+        if(lexstate == INCOMMENT)
+        {
+            in.get(c);
+
+            while(c != '*' && in.peek() != -1)
+            {
+                lexeme += c;
+                if(c == '\n')
+                    linenum++;
+
+                in.get(c);
+            }
+            
+            if(in.peek() == -1)
+                return LexItem(ERR, "Missing a comment end delimiters '*)' at line " + linenum, linenum);
+            else
+            {
+                lexeme += c;
+                in.get(c);
+
+                if(c == ')')
+                {
+                    lexeme = "";
+                    lexstate = START;
+                    continue;
+                }
+                else
+                    in.putback(c);
+            }
+        }
+    }
+    
+    return LexItem(DONE, "DONE", linenum);
+}
+
+LexItem id_or_kw(const string& lexeme, int linenum) 
+{
+    map<string, Token> keywords = 
+    {
+        {"PROGRAM", PROGRAM}, {"WRITELN", WRITELN}, {"INTEGER", INTEGER}, {"BEGIN", BEGIN},
+        {"END", END}, {"IF", IF}, {"REAL", REAL}, {"STRING", STRING}, {"VAR", VAR},
+        {"ELSE", ELSE}, {"FOR", FOR}, {"THEN", THEN}, {"DO", DO}, 
+        {"TO", TO}, {"DOWNTO", DOWNTO}
+    };
+
+    map<string, Token>::iterator it = keywords.find(lexeme); 
+    
+    if(it != keywords.end())
+    {
+        return LexItem(it->second, lexeme, linenum);
+    }
+    else
+    {
+        return LexItem(IDENT, lexeme, linenum);
+    }
+}
+
+ostream& operator<<(ostream& out, const LexItem& tok)
+{
+    Token type = tok.GetToken();
+    
+    map<Token, string> tokens = {
+        {PROGRAM, "PROGRAM"}, {WRITELN, "WRITELN"}, {INTEGER, "INTEGER"}, 
+        {BEGIN, "BEGIN"}, {END, "END"}, {IF, "IF"}, {REAL, "REAL"}, {STRING, "STRING"},
+        {VAR, "VAR"}, {ELSE, "ELSE"}, {FOR, "FOR"}, {THEN, "THEN"}, {DO, "DO"}, 
+        {TO, "TO"}, {DOWNTO, "DOWNTO"}, {IDENT, "IDENT"}, {ICONST, "ICONST"},
+        {RCONST, "RCONST"}, {SCONST, "SCONST"}, {PLUS, "PLUS"}, {MINUS, "MINUS"}, 
+        {MULT, "MULT"}, {DIV, "DIV"}, {ASSOP, "ASSOP"}, {LPAREN, "LPAREN"}, {RPAREN, "RPAREN"}, 
+        {COMMA, "COMMA"}, {EQUAL, "EQUAL"}, {GTHAN, "GTHAN"}, {LTHAN, "LTHAN"}, 
+        {SEMICOL, "SEMICOL"}, {COLON, "COLON"}, {ERR, "ERR"}, {DONE, "DONE"}
+    };
+
+    map<Token, string>::iterator it = tokens.find(type); 
+    string t = it->second;
+
+    out << t;
+
+    if(type == IDENT || type == ICONST || type == RCONST || type == SCONST)
+    {
+        string lexeme = tok.GetLexeme();
+        out << "(" << lexeme << ")";
+    }
+    
+    return out;
+}
+
+
+/*
+    DRIVER PROGRAM
+*/
+
+#include "lex.h"
+//#include "lex.cpp"
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <map>
+
+using namespace std;
+void printS(map<string, LexItem> m);
+void printI(map<int, LexItem> m);
+void printR(map<double, LexItem> m);
+void printID(map<string, LexItem> m);
+
+int main(int argc, char *argv [])
+{
+    ifstream myFile;
+    string filename;
+    int files = 0;
+    bool v = false, iconst = false, rconst = false, sconst = false, ident = false;
+
+    for(int i = 1; i < argc; i++)
+    {
+        string a(argv[i]);
+        
+        if(a[0] == '-') //check for flag
+        {
+            if(a == "-v")
+                v = true;
+            else if (a == "-iconst")
+            {
+                iconst = true;     
+            }
+            else if(a == "-rconst")
+            {
+                rconst = true;
+            }
+            else if(a == "-sconst")
+            {
+                sconst = true;
+            }
+            else if(a == "-ident")
+            {
+                ident = true;
+            }
+            else
+            {
+                cout << "UNRECOGNIZED FLAG " << argv[i] << endl;
+                return 0;
+            }
+        }
+        else
+        {
+            files++;
+            if(files > 1)
+            {    
+                cout << "ONLY ONE FILE NAME ALLOWED." << endl;
+                return 0;
+            }
+            else
+            {
+                filename = a;   
+            }
+        }
+    }
+    
+    if(files == 0)
+    {
+        cout << "NO SPECIFIED INPUT FILE NAME." << endl;
+        return 0;
+    }
+    
+    myFile.open(filename);
+    
+    if(!myFile.is_open())
+    {
+        cout << "CANNOT OPEN the File " << filename << endl;
+        return 0;
+    }
+    
+    if(myFile.peek() == ifstream::traits_type::eof())
+    {
+        cout << "Lines: 0" << endl;
+        return 0;
+    }
+    
+    map<int, LexItem> integers;
+    map<double, LexItem> reals;
+    map<string, LexItem> strings;
+    map<string, LexItem> identifiers;
+    
+    
+    LexItem t; Token type;
+    int linenum = 1;
+    //t.GetLinenum()
+    t = getNextToken(myFile, linenum);
+    type = t.GetToken();
+
+    int numTokens = 0;
+
+    while(type != DONE && type != ERR)
+    {
+        numTokens++;
+        
+        string lex = t.GetLexeme();
+
+        if(v)
+        {
+            cout << t << endl;
+        }
+        else
+        {
+            if(iconst)
+            {
+                if(type == ICONST)
+                    integers.insert(pair<int, LexItem>(stoi(lex),t));
+            }
+
+            if(rconst)
+            {
+                if(type == RCONST)
+                    reals.insert(pair<double, LexItem>(stod(lex),t));
+            }
+
+            if(sconst)
+            {
+                if(type == SCONST)
+                    strings.insert(pair<string, LexItem>(lex,t));
+            }
+
+            if(ident)
+            {
+                if(type == IDENT)
+                    identifiers.insert(pair<string, LexItem>(lex,t));
+            }
+        }
+        
+        linenum = t.GetLinenum();
+        t = getNextToken(myFile, linenum);   
+        type = t.GetToken();
+    }
+
+    if(type == ERR)
+    {
+        cout << "Error in line " << linenum << " (" << t.GetLexeme() << ")" << endl;    
+    }
+    
+    if(type == DONE)
+    {
+        cout << "Lines: " << linenum << endl;
+        cout << "Tokens: " << numTokens << endl;
+        
+        if(sconst)
+        {
+            cout << "STRINGS:" << endl;
+            printS(strings);
+        }
+        
+        if(iconst)
+        {
+            cout << "INTEGERS:" << endl;
+            printI(integers);
+        }
+        
+        if(rconst)
+        {
+            cout << "REALS:" << endl;
+            printR(reals);
+        }
+        
+        if(ident)
+        {
+            cout << "IDENTIFIERS:" << endl;
+            printID(identifiers);
+        }
+            
+    }
+    
+    return 0;
+    
+}
+
+void printS(map<string, LexItem> m)
+{
+    map<string, LexItem>::iterator it;
+    
+    for(it = m.begin(); it != m.end(); it++)
+    {
+        cout << it->first << endl;
+    }       
+}
+
+void printID(map<string, LexItem> m)
+{
+    map<string, LexItem>::iterator it;
+    
+    for(it = m.begin(); it != m.end(); it++)
+    {
+        if(it != m.begin()) 
+            cout << ", ";
+        cout << it->first;
+    }    
+    
+    cout << endl;
+}
+
+void printI(map<int, LexItem> m)
+{
+    map<int, LexItem>::iterator it;
+    
+    for(it = m.begin(); it != m.end(); it++)
+    {
+        cout << it->first << endl;
+    }       
+}
+
+void printR(map<double, LexItem> m)
+{
+    map<double, LexItem>::iterator it;
+    
+    for(it = m.begin(); it != m.end(); it++)
+    {
+        cout << it->first << endl;
+    }       
+}
